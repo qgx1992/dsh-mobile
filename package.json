@@ -1,6 +1,6 @@
 {
   "name": "dsh-mobile",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "DSH Mobile — 连接电脑上 DeepSeek Harness 的 iOS 原生外壳",
   "scripts": {
