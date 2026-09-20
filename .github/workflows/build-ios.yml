@@ -1,0 +1,160 @@
+name: Build iOS IPA
+
+# 手动触发（Actions 页面点 Run workflow），也支持推送自动跑
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'www/**'
+      - 'ios/**'
+      - 'capacitor.config.json'
+      - 'scripts/ci-prepare-ios.sh'
+      - '.github/workflows/build-ios.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # macOS runner：iOS 构建必须在 macOS 上进行（Windows/Linux 无法产出 IPA）。
+    # 本仓库为 public，标准 GitHub-hosted runner 免费。
+    runs-on: macos-15
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          echo "=== 可用 Xcode ==="
+          ls /Applications | grep -i xcode || true
+          # Capacitor 7 需要 Xcode 16+；优先挑选 16 及以上的版本
+          XCODE_APP=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -n1)
+          if [ -z "$XCODE_APP" ]; then
+            XCODE_APP=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -n1)
+          fi
+          echo "使用: $XCODE_APP"
+          sudo xcode-select -s "$XCODE_APP"
+          xcodebuild -version
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: CocoaPods version
+        run: |
+          pod --version || {
+            echo "CocoaPods 缺失，尝试安装…"
+            sudo gem install cocoapods
+            pod --version
+          }
+
+      # 把 www/ 同步进 ios 工程（生成 ios/App/App/public），并同步插件
+      - name: Capacitor sync
+        run: npx cap sync ios
+
+      # 生成共享 scheme + 写入 ATS 明文放行（详见脚本内注释）
+      - name: Prepare iOS project
+        run: bash scripts/ci-prepare-ios.sh ios/App
+
+      - name: Pod install
+        working-directory: ios/App
+        run: |
+          # 不加 --repo-update：Podfile 里全部是 :path 本地 pod，无需拉取远程 spec 仓库
+          # （--repo-update 会同步整个 CocoaPods specs 仓库，拖慢构建数分钟且易受网络影响）
+          pod install
+          echo "=== workspace 内容 ==="
+          ls -la
+
+      - name: Show build settings (diagnostics)
+        working-directory: ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App -showBuildSettings \
+            -configuration Release 2>/dev/null \
+            | grep -E 'PRODUCT_BUNDLE_IDENTIFIER|PRODUCT_NAME|MARKETING_VERSION|IPHONEOS_DEPLOYMENT_TARGET' \
+            | sort -u || true
+
+      # 归档：显式关闭代码签名（无证书环境下的标准做法）。
+      # 产物为**未签名** .app，之后由用户用 Sideloadly / AltStore 以自己的 Apple ID 重签安装。
+      - name: Archive (unsigned)
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            clean archive 2>&1 | tee "$RUNNER_TEMP/archive.log" | tail -n 60
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: 归档产物中找不到 App.app"
+            ls -la "$RUNNER_TEMP/App.xcarchive/Products/Applications/" || true
+            exit 1
+          fi
+
+          echo "=== 产物 Info.plist 关键项 ==="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PATH/Info.plist" || true
+          echo "--- ATS（必须是 NSAllowsArbitraryLoadsInWebContent，且无 NSAllowsArbitraryLoads）---"
+          /usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity" "$APP_PATH/Info.plist"
+
+          rm -rf "$RUNNER_TEMP/Payload"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -qry "DSH-Mobile-unsigned.ipa" Payload
+
+          echo "=== IPA 内容 ==="
+          unzip -l "DSH-Mobile-unsigned.ipa" | head -n 20
+          ls -lh "DSH-Mobile-unsigned.ipa"
+
+      - name: Write build summary
+        if: always()
+        run: |
+          {
+            echo "## iOS 构建结果"
+            echo ""
+            if [ -f "$RUNNER_TEMP/DSH-Mobile-unsigned.ipa" ]; then
+              SIZE=$(ls -lh "$RUNNER_TEMP/DSH-Mobile-unsigned.ipa" | awk '{print $5}')
+              echo "- ✅ 已产出 **未签名 IPA**（$SIZE）"
+              echo "- 下方 Artifacts 下载 \`DSH-Mobile-unsigned.ipa\`"
+              echo "- 安装需用 Sideloadly / AltStore 以自己的 Apple ID 重签"
+            else
+              echo "- ❌ 未产出 IPA，请查看 Archive 步骤日志"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload archive log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-log
+          path: ${{ runner.temp }}/archive.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSH-Mobile-unsigned-ipa
+          path: ${{ runner.temp }}/DSH-Mobile-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30

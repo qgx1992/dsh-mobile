@@ -1,0 +1,23 @@
+node_modules/
+# 注意：package-lock.json **必须提交**——CI 用 `npm ci`，它要求锁文件存在且与
+# package.json 一致；忽略掉会让构建直接失败。
+
+# Capacitor 同步产物（由 `npx cap sync ios` 重新生成）
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/capacitor-cordova-ios-plugins/
+
+# CocoaPods / Xcode 产物
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/build/
+ios/App/output/
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+
+.DS_Store
+*.log
+assets/.icon-generated

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>DSH Mobile</title>
+    <style>
+      :root {
+        --canvas: #0f141c;
+        --surface: #171d27;
+        --surface-2: #212936;
+        --rule: #2b3442;
+        --ink: #e3e6ea;
+        --ink-2: #a8b0bd;
+        --ink-3: #7b8595;
+        --accent: #e0b558;
+        --accent-ink: #241c08;
+        --danger: #e06a6a;
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body { margin: 0; padding: 0; height: 100%; }
+      body {
+        background: var(--canvas);
+        color: var(--ink);
+        font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+        padding: calc(var(--safe-top) + 18px) 16px calc(var(--safe-bottom) + 24px);
+        overflow-y: auto;
+        -webkit-text-size-adjust: 100%;
+      }
+      .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+      .brand .mark {
+        width: 32px; height: 32px; border-radius: 9px; flex: none;
+        background: linear-gradient(140deg, #f0cc76, #c9963a);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--accent-ink); font-weight: 700; font-size: 15px;
+      }
+      .brand h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+      .sub { color: var(--ink-3); font-size: 12.5px; margin: 0 0 18px; }
+      .card {
+        background: var(--surface); border: 1px solid var(--rule);
+        border-radius: 12px; padding: 14px; margin-bottom: 12px;
+      }
+      .card h2 {
+        font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
+        color: var(--ink-3); margin: 0 0 10px; font-weight: 600;
+      }
+      label { display: block; font-size: 12.5px; color: var(--ink-2); margin-bottom: 6px; }
+      input[type="text"], input[type="url"] {
+        width: 100%; background: var(--surface-2); border: 1px solid var(--rule);
+        color: var(--ink); border-radius: 8px; padding: 11px 12px; font-size: 15px;
+        font-family: ui-monospace, Menlo, Consolas, monospace; outline: none;
+      }
+      input:focus { border-color: var(--accent); }
+      button {
+        font: inherit; border: 0; border-radius: 8px; cursor: pointer;
+        padding: 11px 14px; font-weight: 600; font-size: 15px;
+        transition: opacity .15s ease;
+      }
+      button:active { opacity: .75; }
+      .primary { background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 10px; }
+      .primary[disabled] { opacity: .45; cursor: default; }
+      .ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--rule); font-size: 13px; padding: 7px 10px; }
+      .status { margin: 10px 0 0; font-size: 13px; color: var(--ink-2); min-height: 20px; }
+      .status.err { color: var(--danger); }
+      .status.ok { color: #7fc99a; }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 0; border-bottom: 1px solid var(--rule);
+      }
+      li:last-child { border-bottom: 0; }
+      li .info { flex: 1; min-width: 0; }
+      li .name { font-size: 14px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      li .url {
+        font-size: 12px; color: var(--ink-3); font-family: ui-monospace, Menlo, Consolas, monospace;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .empty { color: var(--ink-3); font-size: 13px; padding: 4px 0; }
+      ol { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; }
+      ol li { display: list-item; border: 0; padding: 2px 0; }
+      code {
+        font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+        background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--ink);
+      }
+      .hint { color: var(--ink-2); font-size: 13px; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <div class="mark">DSH</div>
+      <h1>DSH Mobile</h1>
+    </div>
+    <p class="sub">连接电脑上运行的 DeepSeek Harness</p>
+
+    <section class="card">
+      <h2>连接地址</h2>
+      <label for="url">电脑上的「手机访问」地址</label>
+      <input id="url" type="url" inputmode="url" autocapitalize="off" autocorrect="off"
+             spellcheck="false" placeholder="192.168.1.5:3081" />
+      <button id="connect" class="primary">连接</button>
+      <p id="status" class="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>已保存</h2>
+      <ul id="list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>怎么拿到地址</h2>
+      <ol>
+        <li>确认电脑上 DSH 的「手机访问」已开启</li>
+        <li>在 DSH 设置页打开「手机访问」，能看到局域网 / 公网地址与二维码</li>
+        <li>局域网地址形如 <code>http://192.168.x.x:3081</code>，公网为 <code>https://…</code></li>
+        <li>把该地址填到上面，或从二维码读出后手动输入</li>
+      </ol>
+      <p class="hint" style="margin-top:10px">
+        手机需与电脑在同一 WiFi（局域网模式），或电脑已开启公网隧道。
+      </p>
+    </section>
+
+    <script>
+      var $ = function (s) { return document.querySelector(s); };
+      var KEY = 'dsh.connections';
+      var DEFAULT_PORT = '3081';
+
+      function normalize(raw) {
+        var s = String(raw || '').trim();
+        if (!s) return null;
+        if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+        try {
+          var u = new URL(s);
+          if (!u.hostname) return null;
+          if (!u.port && u.protocol === 'http:') u.port = DEFAULT_PORT;
+          return u.origin;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function load() {
+        try {
+          var v = JSON.parse(localStorage.getItem(KEY) || '[]');
+          return Array.isArray(v) ? v : [];
+        } catch (e) { return []; }
+      }
+
+      function save(list) {
+        try { localStorage.setItem(KEY, JSON.stringify(list.slice(0, 20))); } catch (e) {}
+      }
+
+      function remember(url) {
+        var list = load().filter(function (x) { return x.url !== url; });
+        list.unshift({ url: url, name: hostOf(url), ts: Date.now() });
+        save(list);
+        render();
+      }
+
+      function hostOf(url) {
+        try { return new URL(url).host; } catch (e) { return url; }
+      }
+
+      function forget(url) {
+        save(load().filter(function (x) { return x.url !== url; }));
+        render();
+      }
+
+      function setStatus(msg, kind) {
+        var el = $('#status');
+        el.textContent = msg || '';
+        el.className = 'status' + (kind ? ' ' + kind : '');
+      }
+
+      function render() {
+        var list = load();
+        var ul = $('#list');
+        ul.innerHTML = '';
+        if (!list.length) {
+          var li = document.createElement('li');
+          li.className = 'empty';
+          li.textContent = '还没有保存的连接';
+          ul.appendChild(li);
+          return;
+        }
+        list.forEach(function (item) {
+          var li = document.createElement('li');
+
+          var info = document.createElement('div');
+          info.className = 'info';
+          var name = document.createElement('div');
+          name.className = 'name';
+          name.textContent = item.name || hostOf(item.url);
+          var url = document.createElement('div');
+          url.className = 'url';
+          url.textContent = item.url;
+          info.appendChild(name);
+          info.appendChild(url);
+
+          var go = document.createElement('button');
+          go.className = 'ghost';
+          go.textContent = '连接';
+          go.onclick = function () { connect(item.url); };
+
+          var del = document.createElement('button');
+          del.className = 'ghost';
+          del.textContent = '删除';
+          del.onclick = function () { forget(item.url); };
+
+          li.appendChild(info);
+          li.appendChild(go);
+          li.appendChild(del);
+          ul.appendChild(li);
+        });
+      }
+
+      // 可达性预检：no-cors 下拿到 opaque 响应即代表可达（读不到内容，但能判活）
+      function reachable(url, ms) {
+        return new Promise(function (resolve) {
+          var ctrl = new AbortController();
+          var timer = setTimeout(function () { ctrl.abort(); resolve(false); }, ms || 6000);
+          fetch(url + '/?_probe=' + Date.now(), {
+            mode: 'no-cors',
+            cache: 'no-store',
+            signal: ctrl.signal
+          }).then(function () {
+            clearTimeout(timer);
+            resolve(true);
+          }).catch(function () {
+            clearTimeout(timer);
+            resolve(false);
+          });
+        });
+      }
+
+      var busy = false;
+      function connect(url) {
+        if (busy) return;
+        var target = normalize(url);
+        if (!target) {
+          setStatus('地址格式不对，示例：192.168.1.5:3081', 'err');
+          return;
+        }
+        busy = true;
+        $('#connect').disabled = true;
+        setStatus('正在连接 ' + target + ' …');
+
+        reachable(target).then(function (ok) {
+          busy = false;
+          $('#connect').disabled = false;
+          if (!ok) {
+            setStatus('连不上。请确认：电脑上 DSH 正在运行、「手机访问」已开启、手机与电脑同一 WiFi。', 'err');
+            return;
+          }
+          remember(target);
+          setStatus('已连通，正在打开…', 'ok');
+          window.location.href = target;
+        });
+      }
+
+      $('#connect').onclick = function () { connect($('#url').value); };
+      $('#url').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') connect($('#url').value);
+      });
+
+      render();
+    </script>
+  </body>
+</html>

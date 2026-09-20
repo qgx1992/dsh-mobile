@@ -1,0 +1,17 @@
+{
+  "name": "dsh-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH Mobile — 连接电脑上 DeepSeek Harness 的 iOS 原生外壳",
+  "scripts": {
+    "add:ios": "cap add ios",
+    "sync": "cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/ios": "^7.6.9"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.9"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "appId": "com.qgx1992.dshmobile",
+  "appName": "DSH Mobile",
+  "webDir": "www",
+  "server": {
+    "iosScheme": "capacitor",
+    "errorPath": "error.html",
+    "allowNavigation": ["*"]
+  },
+  "ios": {
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}
